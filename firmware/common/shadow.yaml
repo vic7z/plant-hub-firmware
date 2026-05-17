@@ -59,6 +59,10 @@ globals:
   # triggers a fresh `update/delta` from AWS — and if the delta cannot ever
   # be satisfied (e.g. desired.rules vs reported's hash-only echo), it loops.
   # We short-circuit when none of the fields we actually report have changed.
+  # `shadow_reported_last_v` is kept for diagnostics / log lines only and
+  # is intentionally NOT part of the change comparison: AWS bumps the
+  # envelope `version` on every publish so including it would defeat the
+  # debounce entirely.
   - id: shadow_reported_last_v
     type: int
     restore_value: no
@@ -304,12 +308,14 @@ script:
             return;
           }
 
-          // Debounce: skip publish if every field we report matches what we
-          // last published. AWS Shadow re-emits update/delta on every update
-          // we send, so an unnecessary republish is what turns a single
-          // unsatisfiable delta into a runaway loop. The version field
-          // intentionally drives the comparison so an honest desired-version
-          // bump from the backend still gets acknowledged.
+          // Debounce: skip publish if every desired-state field we report
+          // matches what we last published. AWS Shadow re-emits update/delta
+          // on every device-side update we send AND bumps the envelope's
+          // top-level `version` each time — so including `version` in the
+          // change detector guarantees a republish on every iteration and
+          // turns a single empty delta into a runaway loop. Compare only
+          // the real desired-state fields (sleep / rulesHash / ruleCount);
+          // `v` is AWS metadata and is intentionally excluded.
           int  cur_v        = id(shadow_desired_version);
           const std::string& cur_hash = id(shadow_desired_hash);
           bool cur_sleep_on = id(shadow_sleep_enabled);
@@ -317,7 +323,6 @@ script:
           int  cur_rc       = (int) id(rule_rows).size();
 
           bool unchanged =
-            cur_v        == id(shadow_reported_last_v) &&
             cur_hash     == id(shadow_reported_last_hash) &&
             cur_sleep_on == id(shadow_reported_last_sleep_on) &&
             cur_sleep_w  == id(shadow_reported_last_sleep_w) &&
