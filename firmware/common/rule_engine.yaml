@@ -196,6 +196,10 @@ script:
             // command_router payload) so the backend can dedup on
             // (deviceId, actuatorKey, source=RULE_LOCAL, firedAt).
             uint32_t fired_at = now_epoch > 0 ? now_epoch : (uint32_t) (millis() / 1000);
+            // Stamp offline=true when the broker is unreachable at fire time
+            // so the BE can classify this as an OFFLINE_RULE event. The flag
+            // rides through the NVS buffer and the drain-on-reconnect path.
+            bool fired_offline = !planthub::planthub_mqtt.is_connected();
             std::string evt = "{\"ruleId\":" + std::to_string(rule.id);
             evt += ",\"actuator\":\"" + rule.a + "\"";
             evt += ",\"action\":\"" + rule.c + "\"";
@@ -203,6 +207,9 @@ script:
               evt += ",\"durationSeconds\":" + std::to_string(rule.d);
             }
             evt += ",\"firedAt\":" + std::to_string(fired_at);
+            if (fired_offline) {
+              evt += ",\"offline\":true";
+            }
             evt += "}";
 
             // Bound the buffer — drop the oldest event when full so a long
