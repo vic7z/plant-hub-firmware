@@ -103,11 +103,16 @@ jobs:
           cp "${src_dir}/firmware.factory.bin" "${out_dir}/firmware.factory.bin"
 
           # Generate the ESP Web Tools manifest.
+          # new_install_prompt_erase is intentionally omitted: with it set to
+          # true, esp-web-tools wipes the entire flash on every install, which
+          # blows away the NVS partition where we keep Wi-Fi credentials and
+          # soil-moisture calibration. Default behaviour (no erase, just write
+          # the bundled offsets) is what we want — users can still trigger a
+          # full erase via the "Erase device" affordance in the tool.
           cat > "${out_dir}/manifest.json" <<EOF
           {
             "name": "${DISPLAY_NAME}",
             "version": "${VERSION}",
-            "new_install_prompt_erase": true,
             "builds": [
               {
                 "chipFamily": "${CHIP_FAMILY}",
