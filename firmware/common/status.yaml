@@ -127,7 +127,11 @@ script:
       - script.execute: maybe_sleep
 
   # --- Handle Actuator Commands from Backend ---
-  # Backend sends: {"nodeId":"...","commands":[{"actuator":"waterPump","action":"ON","parameters":{"durationSeconds":30}}]}
+  # Backend sends: {"nodeId":"...","messageId":"<uuid>","commands":[{"actuator":"waterPump","action":"ON","durationSeconds":30}]}
+  # `messageId` is stamped by ActuatorCommandService for every backend-originated
+  # command. Locally-fired rule events (rule_engine.yaml synthesises a payload
+  # with "source":"RULE_LOCAL") deliberately omit it so the dedup ring below
+  # never blocks them — those are already rate-limited by the rule cooldown.
   - id: handle_command
     mode: queued
     parameters:
@@ -135,6 +139,30 @@ script:
     then:
       - lambda: |-
           ESP_LOGI("command", "Received: %s", payload.c_str());
+
+          // Dedup ring buffer for QoS 1 redeliveries from AWS IoT Core.
+          // Static so the buffer survives between handle_command invocations
+          // without needing a global var. 8 entries × ~36 bytes/UUID ≈ 290 B —
+          // negligible RAM for the value it provides.
+          static std::vector<std::string> recent_message_ids;
+          static const size_t MSG_ID_BUFFER_SIZE = 8;
+
+          std::string messageId = planthub::extractJsonString(payload, "messageId");
+          if (!messageId.empty()) {
+            for (const auto& seen : recent_message_ids) {
+              if (seen == messageId) {
+                ESP_LOGW("command",
+                  "Duplicate messageId %s — dropping (likely QoS 1 redelivery)",
+                  messageId.c_str());
+                return;
+              }
+            }
+            recent_message_ids.push_back(messageId);
+            if (recent_message_ids.size() > MSG_ID_BUFFER_SIZE) {
+              recent_message_ids.erase(recent_message_ids.begin());
+            }
+          }
+          // Local rule fires (source=RULE_LOCAL) have no messageId — fall through.
 
           // Parse commands array — iterate through each command object
           // Find start of commands array

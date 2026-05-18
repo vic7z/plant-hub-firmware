@@ -42,6 +42,18 @@ switch:
                   format: "Pump safety auto-shutoff triggered after %s seconds"
                   args: ['"${pump_max_duration}"']
               - switch.turn_off: water_pump
+              # Audit event — published so the backend can correct the
+              # `commands` row's recorded durationSeconds if the safety timer
+              # fired before the requested duration completed. Without this
+              # the audit trail says e.g. "300s pump run" when reality was
+              # capped at ${pump_max_duration}s.
+              - lambda: |-
+                  if (planthub::planthub_mqtt.is_connected()) {
+                    std::string msg = "{\"actuator\":\"waterPump\",\"reason\":\"safety_timeout\",\"durationSeconds\":${pump_max_duration}}";
+                    std::string topic = planthub::planthub_mqtt.get_base_topic()
+                                       + "/actuators/safety";
+                    planthub::planthub_mqtt.publish(topic, msg, 1, false);
+                  }
 
     on_turn_off:
       then:
