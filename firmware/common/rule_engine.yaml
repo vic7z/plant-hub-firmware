@@ -99,15 +99,22 @@ script:
       - lambda: |-
           id(rule_rows).clear();
           if (id(rules_json).empty()) {
-            ESP_LOGI("rule_engine", "No rules_json in NVS — engine idle");
+            ESP_LOGI("rule_engine", "Rule engine ready: 0 rules loaded (no rules_json in NVS)");
             id(rules_loaded) = true;
             return;
           }
           id(rule_rows) = planthub::parseShadowDeltaRules(id(rules_json));
           id(rules_loaded) = true;
-          ESP_LOGI("rule_engine", "Loaded %d rules from NVS", (int) id(rule_rows).size());
+          // Promote per-rule details to INFO so a boot log reveals exactly
+          // which rules are active without needing DEBUG verbosity. Boot logs
+          // are the primary way we diagnose "rules aren't syncing" — the
+          // previous DEBUG-only spew meant a user would have to grep for the
+          // *absence* of the rules-config message instead of seeing rule
+          // contents up front. Keep this concise (one line per rule).
+          ESP_LOGI("rule_engine", "Rule engine ready: %d rules loaded from NVS",
+                   (int) id(rule_rows).size());
           for (const auto& r : id(rule_rows)) {
-            ESP_LOGD("rule_engine", "  rule #%d: %s %s %.2f -> %s %s (d=%ds cd=%ds)",
+            ESP_LOGI("rule_engine", "  rule #%d: %s %s %.2f -> %s %s (d=%ds cd=%ds)",
                      r.id, r.s.c_str(), r.op.c_str(), r.t,
                      r.a.c_str(), r.c.c_str(), r.d, r.cd);
           }
@@ -228,8 +235,12 @@ script:
       - lambda: |-
           planthub::planthub_mqtt.set_rules_config_callback(
             [](const std::string &topic, const std::string &payload) {
+              // Log payload size + first-rule preview so a "did rules
+              // actually arrive?" question is answered by scanning the boot
+              // log. apply_rules_json then prints the per-rule INFO lines
+              // via load_rules_from_nvs.
               ESP_LOGI("rule_engine",
-                "Rules-config message on %s (%d bytes)",
+                "Rules-config message received on %s (%d bytes) — applying",
                 topic.c_str(), (int) payload.length());
               id(apply_rules_json).execute(payload);
             }
