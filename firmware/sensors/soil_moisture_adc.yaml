@@ -31,11 +31,22 @@ sensor:
     icon: "mdi:water-percent"
     update_interval: ${sensor_update_interval}
     lambda: |-
+      // Lazy-init the calibration module from inside the lambda so the
+      // soil-specific boot logic stays inside this file. base.yaml
+      // consolidates all esphome.on_boot entries to dodge ESPHome's
+      // package-merge "last one wins" behaviour, so we can't add one here.
+      static bool cal_inited = false;
+      if (!cal_inited) {
+        planthub::soil_cal_init(${soil_dry_value}, ${soil_wet_value});
+        cal_inited = true;
+      }
+
       float raw = id(soil_raw).state;
       if (isnan(raw)) return NAN;
+      planthub::soil_cal_raw_v = raw;  // expose latest sample to the @CAL streamer
 
-      float dry = ${soil_dry_value};
-      float wet = ${soil_wet_value};
+      float dry = planthub::soil_cal_dry;
+      float wet = planthub::soil_cal_wet;
       float pct = (dry - raw) / (dry - wet) * 100.0;
 
       if (pct < 0) pct = 0;
@@ -44,3 +55,11 @@ sensor:
       id(sensor_values)["soilMoisture"] = pct;
       id(evaluate_rules).execute(std::string("soilMoisture"), pct);
       return pct;
+
+# 50 ms polling drives the USB-CDC calibration command listener. Cheap
+# (no-op until the lazy init above has fired) and shared across all
+# variants that include this package.
+interval:
+  - interval: 50ms
+    then:
+      - lambda: 'planthub::soil_cal_poll();'

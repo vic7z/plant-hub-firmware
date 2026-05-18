@@ -12,6 +12,7 @@ esphome:
   includes:
     - ../common/json_helper.h
     - ../common/nvs_helper.h
+    - ../common/soil_cal.h
     - ../common/rtc_cooldown.h
     - ../common/planthub_mqtt/planthub_mqtt.h
     - ../common/planthub_mqtt/planthub_mqtt.cpp
