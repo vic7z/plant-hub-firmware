@@ -1,0 +1,12 @@
+{
+  "name": "PlantHub C3 SuperMini Solar (AHT25)",
+  "version": "0.0.0+3dabe1d",
+  "builds": [
+    {
+      "chipFamily": "ESP32-C3",
+      "parts": [
+        { "path": "firmware.factory.bin", "offset": 0 }
+      ]
+    }
+  ]
+}

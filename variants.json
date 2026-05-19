@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "variants": [
+    {
+      "id": "c3zero-soil-bme-bh1750-pump-fan",
+      "displayName": "ESP32-C3 Zero · Soil + BME280 + BH1750 + Pump + Fan",
+      "summary": "Reference kit: capacitive soil moisture, BME280 (temp/humidity/pressure), BH1750 (light), water pump relay, vent fan relay.",
+      "yamlSource": "example-c3zero.yaml",
+      "buildId": "planthub-c3-001",
+      "chipFamily": "ESP32-C3",
+      "board": "esp32-c3-devkitm-1",
+      "manifestPath": "c3zero-soil-bme-bh1750-pump-fan/manifest.json",
+      "wiring": [
+        { "pin": "GPIO0",        "component": "Soil moisture AOUT" },
+        { "pin": "GPIO6 (SDA)",  "component": "BME280 + BH1750 SDA" },
+        { "pin": "GPIO7 (SCL)",  "component": "BME280 + BH1750 SCL" },
+        { "pin": "GPIO3",        "component": "Water pump relay IN" },
+        { "pin": "GPIO4",        "component": "Vent fan relay IN" },
+        { "pin": "GPIO8",        "component": "Status LED" },
+        { "pin": "GPIO9",        "component": "Factory-reset button (to GND)" },
+        { "pin": "3.3V",         "component": "Sensor VCC (soil, BME280, BH1750)" },
+        { "pin": "5V",           "component": "Relay module VCC" },
+        { "pin": "GND",          "component": "Common GND" }
+      ],
+      "sensors":   ["soilMoisture", "temperature", "humidity", "pressure", "lightLevel"],
+      "actuators": ["waterPump", "ventFan"]
+    },
+    {
+      "id": "s3zero-soil-bme-bh1750-pump-fan",
+      "displayName": "ESP32-S3 Zero · Soil + BME280 + BH1750 + Pump + Fan",
+      "summary": "S3 variant of the reference kit. Same sensors and actuators, different pinout.",
+      "yamlSource": "example-s3zero.yaml",
+      "buildId": "planthub-s3-001",
+      "chipFamily": "ESP32-S3",
+      "board": "esp32-s3-devkitc-1",
+      "manifestPath": "s3zero-soil-bme-bh1750-pump-fan/manifest.json",
+      "wiring": [
+        { "pin": "GPIO1",        "component": "Soil moisture AOUT" },
+        { "pin": "GPIO8 (SDA)",  "component": "BME280 + BH1750 SDA" },
+        { "pin": "GPIO9 (SCL)",  "component": "BME280 + BH1750 SCL" },
+        { "pin": "GPIO3",        "component": "Water pump relay IN" },
+        { "pin": "GPIO4",        "component": "Vent fan relay IN" },
+        { "pin": "GPIO48",       "component": "Status LED (on-board RGB)" },
+        { "pin": "GPIO2",        "component": "Factory-reset button (to GND)" },
+        { "pin": "3.3V",         "component": "Sensor VCC" },
+        { "pin": "5V",           "component": "Relay module VCC" },
+        { "pin": "GND",          "component": "Common GND" }
+      ],
+      "sensors":   ["soilMoisture", "temperature", "humidity", "pressure", "lightLevel"],
+      "actuators": ["waterPump", "ventFan"]
+    },
+    {
+      "id": "c3supermini-solar-bmp280-temt-ds18-soil-pump",
+      "displayName": "ESP32-C3 SuperMini · Solar (BMP280 + TEMT6000 + DS18B20 + Soil + Pump)",
+      "summary": "Solar/battery node: BMP280 (air temp + pressure), DS18B20 soil temperature probe, TEMT6000 ambient light, capacitive soil moisture, water pump relay, and MPPT CHRG status input. Deep-sleep capable; enable via the backend shadow once provisioned.",
+      "yamlSource": "c3supermini-solar.yaml",
+      "buildId": "planthub-c3-solar-001",
+      "chipFamily": "ESP32-C3",
+      "board": "esp32-c3-devkitm-1",
+      "manifestPath": "c3supermini-solar-bmp280-temt-ds18-soil-pump/manifest.json",
+      "wiring": [
+        { "pin": "GPIO0",        "component": "TEMT6000 SIG (analog)" },
+        { "pin": "GPIO1",        "component": "DS18B20 DQ (with external 4.7 kΩ pull-up to 3.3V)" },
+        { "pin": "GPIO3",        "component": "Capacitive soil moisture AOUT" },
+        { "pin": "GPIO4 (SDA)",  "component": "BMP280 SDA" },
+        { "pin": "GPIO5 (SCL)",  "component": "BMP280 SCL" },
+        { "pin": "GPIO7",        "component": "MPPT charger CHRG (active LOW, internal pull-up)" },
+        { "pin": "GPIO8",        "component": "On-board status LED" },
+        { "pin": "GPIO9",        "component": "On-board BOOT button (factory-reset short-press)" },
+        { "pin": "GPIO10",       "component": "Water pump motor driver IN (active HIGH)" },
+        { "pin": "3.3V",         "component": "Sensor VCC (BMP280, DS18B20, TEMT6000, soil, charger)" },
+        { "pin": "VBAT / 5V",    "component": "Pump motor driver VCC" },
+        { "pin": "GND",          "component": "Common GND" }
+      ],
+      "sensors":   ["temperature", "pressure", "soilTemp", "lightLevel", "soilMoisture"],
+      "actuators": ["waterPump"]
+    },
+    {
+      "id": "c3supermini-solar-aht25-temt-ds18-soil-pump",
+      "displayName": "ESP32-C3 SuperMini · Solar (AHT25 + TEMT6000 + DS18B20 + Soil + Pump)",
+      "summary": "Solar/battery node: AHT25 (air temp + humidity), DS18B20 soil temperature probe, TEMT6000 ambient light, capacitive soil moisture, water pump relay, and MPPT CHRG status input. Deep-sleep capable; enable via the backend shadow once provisioned.",
+      "yamlSource": "c3supermini-solar-aht25.yaml",
+      "buildId": "planthub-c3-aht25-001",
+      "chipFamily": "ESP32-C3",
+      "board": "esp32-c3-devkitm-1",
+      "manifestPath": "c3supermini-solar-aht25-temt-ds18-soil-pump/manifest.json",
+      "wiring": [
+        { "pin": "GPIO0",        "component": "TEMT6000 SIG (analog)" },
+        { "pin": "GPIO1",        "component": "DS18B20 DQ (with external 4.7 kΩ pull-up to 3.3V)" },
+        { "pin": "GPIO3",        "component": "Capacitive soil moisture AOUT" },
+        { "pin": "GPIO4 (SDA)",  "component": "AHT25 SDA" },
+        { "pin": "GPIO5 (SCL)",  "component": "AHT25 SCL" },
+        { "pin": "GPIO7",        "component": "MPPT charger CHRG (active LOW, internal pull-up)" },
+        { "pin": "GPIO8",        "component": "On-board status LED" },
+        { "pin": "GPIO9",        "component": "On-board BOOT button (factory-reset short-press)" },
+        { "pin": "GPIO10",       "component": "Water pump motor driver IN (active HIGH)" },
+        { "pin": "3.3V",         "component": "Sensor VCC (AHT25, DS18B20, TEMT6000, soil, charger)" },
+        { "pin": "VBAT / 5V",    "component": "Pump motor driver VCC" },
+        { "pin": "GND",          "component": "Common GND" }
+      ],
+      "sensors":   ["temperature", "humidity", "soilTemp", "lightLevel", "soilMoisture"],
+      "actuators": ["waterPump"]
+    }
+  ]
+}
