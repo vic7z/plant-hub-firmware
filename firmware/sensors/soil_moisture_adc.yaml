@@ -13,14 +13,22 @@
 #   GND  → GND
 
 sensor:
-  # Raw ADC reading (internal, not exposed)
+  # Raw ADC reading (internal, not exposed).
+  # Sampled fast (1 s) so the USB calibration UI shows a live voltage —
+  # decoupled from ${sensor_update_interval} which controls how often
+  # the calibrated percentage is published to MQTT. ADC reads on the
+  # C3 cost microseconds, so 1 s polling is essentially free.
   - platform: adc
     pin: ${soil_moisture_pin}
     name: "Soil Moisture Raw"
     id: soil_raw
     attenuation: 12db
-    update_interval: ${sensor_update_interval}
+    update_interval: 1s
     internal: true
+    on_value:
+      then:
+        - lambda: |-
+            if (!std::isnan(x)) planthub::soil_cal_raw_v = x;
 
   # Calibrated percentage (0-100%)
   - platform: template
@@ -33,7 +41,6 @@ sensor:
     lambda: |-
       float raw = id(soil_raw).state;
       if (isnan(raw)) return NAN;
-      planthub::soil_cal_raw_v = raw;  // expose latest sample to the @CAL streamer
 
       float dry = planthub::soil_cal_dry;
       float wet = planthub::soil_cal_wet;
