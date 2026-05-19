@@ -1,0 +1,55 @@
+# sensors/aht25.yaml
+# AHT25 I2C sensor — air temperature + relative humidity (no pressure).
+#
+# ESPHome has no dedicated `aht25` platform — the AHT25 is the same
+# silicon as the AHT20 with different packaging, so we use the `aht10`
+# platform with `variant: AHT20` (the documented way to talk to any
+# AHT2x family chip). Both AHT20 and AHT25 are hardwired to I2C
+# address 0x38, so no `address:` field is needed. `i2c.scan: true`
+# logs the discovered address at boot for sanity.
+#
+# Required substitutions:
+#   ${i2c_sda_pin}            — I2C SDA GPIO
+#   ${i2c_scl_pin}            — I2C SCL GPIO
+#   ${sensor_update_interval} — how often to read (e.g. 60s)
+#
+# Wiring:
+#   SDA → ${i2c_sda_pin}
+#   SCL → ${i2c_scl_pin}
+#   VCC → 3.3V
+#   GND → GND
+#
+# Do NOT include this alongside sensors/bme280.yaml or sensors/bmp280.yaml —
+# they declare overlapping IDs ("temperature", "humidity") and would
+# fight over the I2C bus.
+
+i2c:
+  sda: ${i2c_sda_pin}
+  scl: ${i2c_scl_pin}
+  scan: true
+  frequency: 100kHz
+
+sensor:
+  - platform: aht10
+    variant: AHT20
+    update_interval: ${sensor_update_interval}
+
+    temperature:
+      name: "Temperature"
+      id: temperature
+      on_value:
+        then:
+          - lambda: |-
+              if (std::isnan(x)) return;
+              id(sensor_values)["temperature"] = x;
+              id(evaluate_rules).execute(std::string("temperature"), x);
+
+    humidity:
+      name: "Humidity"
+      id: humidity
+      on_value:
+        then:
+          - lambda: |-
+              if (std::isnan(x)) return;
+              id(sensor_values)["humidity"] = x;
+              id(evaluate_rules).execute(std::string("humidity"), x);

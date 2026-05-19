@@ -47,6 +47,11 @@ jobs:
             build_dir: planthub-c3-solar-001
             chip_family: ESP32-C3
             display_name: PlantHub C3 SuperMini Solar
+          - id: c3supermini-solar-aht25-temt-ds18-soil-pump
+            yaml: c3supermini-solar-aht25.yaml
+            build_dir: planthub-c3-aht25-001
+            chip_family: ESP32-C3
+            display_name: PlantHub C3 SuperMini Solar (AHT25)
     steps:
       - name: Checkout
         uses: actions/checkout@v4

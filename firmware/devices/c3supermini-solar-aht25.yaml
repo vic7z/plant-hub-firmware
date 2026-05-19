@@ -1,0 +1,170 @@
+# devices/c3supermini-solar-aht25.yaml
+#
+# PlantHub solar/battery node — ESP32-C3 SuperMini (AHT25 variant)
+#
+# Same hardware family as c3supermini-solar.yaml, but with an AHT25
+# (temperature + humidity) in place of the BMP280 (temperature +
+# pressure). Everything else — DS18B20 soil probe, TEMT6000 ambient
+# light, capacitive soil moisture, MPPT CHRG status input, water pump
+# motor driver — is identical to the BMP280 build.
+#
+# Hardware:
+#   ESP32-C3 SuperMini   (RISC-V, ESP-IDF)
+#   AHT25                (I2C: SDA=GPIO4, SCL=GPIO5, addr 0x38) — air temperature + humidity
+#   DS18B20              (1-Wire on GPIO1, 4.7 kΩ pull-up) — soil temperature probe
+#   TEMT6000             (analog on GPIO0) — ambient light
+#   Capacitive soil      (analog on GPIO3) — moisture %
+#   MPPT charger CHRG    (digital input on GPIO7, active LOW with internal pull-up)
+#   Water pump driver    (digital output on GPIO10, active HIGH = pump ON)
+#
+# ============================================
+# WIRING DIAGRAM
+# ============================================
+#
+#   ESP32-C3 SuperMini    Component
+#   ------------------    ---------
+#   GPIO0           →     TEMT6000 SIG
+#   GPIO1           →     DS18B20 DQ (with external 4.7 kΩ pull-up to 3.3V)
+#   GPIO3           →     Capacitive soil moisture AOUT
+#   GPIO4 (SDA)     →     AHT25 SDA
+#   GPIO5 (SCL)     →     AHT25 SCL
+#   GPIO7           →     MPPT charger CHRG line
+#   GPIO8           →     On-board status LED (built into the SuperMini)
+#   GPIO9           →     On-board BOOT button (used as factory-reset short-press)
+#   GPIO10          →     Water-pump motor driver IN (treated as a relay)
+#   3.3V            →     Sensor VCC (AHT25, DS18B20, TEMT6000, soil, charger)
+#   VBAT / 5V       →     Pump motor driver VCC (per your driver's spec)
+#   GND             →     Common ground
+#
+# ============================================
+# DEEP SLEEP
+# ============================================
+#
+# This variant is solar-powered and benefits from deep sleep during the night
+# when the panel produces nothing. Sleep is enabled at runtime by setting the
+# AWS IoT Device Shadow's `desired.sleep` config from the backend dashboard:
+#
+#   { "state": { "desired": { "sleep": { "on": true, "w": 600 } } } }
+#
+# (`w` = wake interval in seconds. 600 = wake every 10 min.) The setting is
+# persisted to NVS via `restore_value: yes`, so the device honours it across
+# reboots until the operator turns it off.
+#
+# ============================================
+# FLASH & ONBOARD
+# ============================================
+#
+#   esphome run firmware/devices/c3supermini-solar-aht25.yaml
+#
+# Then follow the provisioning flow in the top-level README.md.
+#
+
+substitutions:
+  # --- Device identity ----------------------------------------------------
+  device_id: "planthub-c3-aht25-001"
+  device_name: "PlantHub C3 Solar Node (AHT25)"
+  hardware_version: "esp32c3-supermini-solar-aht25-v1"
+  firmware_version: "0.1.0"
+
+  # Backend URL + device-provisioning API key (from secrets.yaml)
+  backend_url: !secret backend_url
+  device_provisioning_key: !secret device_provisioning_key
+
+  # --- Pin mappings -------------------------------------------------------
+  temt6000_pin: GPIO0
+  ds18b20_pin: GPIO1
+  soil_moisture_pin: GPIO3
+  i2c_sda_pin: GPIO4
+  i2c_scl_pin: GPIO5
+  charge_status_pin: GPIO7
+  status_led_pin: GPIO8
+  factory_reset_pin: GPIO9
+  pump_pin: GPIO10
+
+  # --- I2C address --------------------------------------------------------
+  # The AHT25 (like all AHT2x parts) is hardwired to 0x38 — no `address:`
+  # field is needed in the sensor package. `i2c.scan: true` logs the
+  # discovered address at boot.
+
+  # --- Soil moisture calibration -----------------------------------------
+  # Measure with YOUR sensor:
+  #   soil_dry_value: ADC voltage when probe is in dry air
+  #   soil_wet_value: ADC voltage when probe is submerged in water
+  # See ../../docs/CUSTOMIZATION.md for the calibration procedure.
+  soil_dry_value: "3.0"
+  soil_wet_value: "1.2"
+
+  # --- Timing -------------------------------------------------------------
+  sensor_update_interval: "60s"
+  telemetry_interval: "60s"
+  pump_max_duration: "120"   # seconds — safety auto-off for the pump
+
+  # --- Capabilities advertised to the backend ----------------------------
+  capabilities_sensors: |-
+    msg += "{\"sensorKey\":\"temperature\",\"sensorType\":\"aht25\",\"unit\":\"°C\",\"displayName\":\"Air Temperature\",\"minValue\":-40,\"maxValue\":85,\"precision\":0.1},";
+    msg += "{\"sensorKey\":\"humidity\",\"sensorType\":\"aht25\",\"unit\":\"%\",\"displayName\":\"Humidity\",\"minValue\":0,\"maxValue\":100,\"precision\":0.1},";
+    msg += "{\"sensorKey\":\"soilTemp\",\"sensorType\":\"ds18b20\",\"unit\":\"°C\",\"displayName\":\"Soil Temperature\",\"minValue\":-55,\"maxValue\":125,\"precision\":0.1},";
+    msg += "{\"sensorKey\":\"lightLevel\",\"sensorType\":\"temt6000\",\"unit\":\"lx\",\"displayName\":\"Light Level\",\"minValue\":0,\"maxValue\":10000,\"precision\":1},";
+    msg += "{\"sensorKey\":\"soilMoisture\",\"sensorType\":\"capacitive_adc\",\"unit\":\"%\",\"displayName\":\"Soil Moisture\",\"minValue\":0,\"maxValue\":100,\"precision\":0.1}";
+
+  capabilities_actuators: |-
+    msg += "{\"actuatorKey\":\"waterPump\",\"actuatorType\":\"relay\",\"displayName\":\"Water Pump\",\"supportedCommands\":[\"ON\",\"OFF\"],\"controlType\":\"BINARY\",\"durationSupported\":true,\"maxDurationSeconds\":${pump_max_duration}}";
+
+  # --- Command router -----------------------------------------------------
+  command_router: |-
+    if (actuator == "waterPump") {
+      if (durationSeconds > 0) {
+        int clamped = durationSeconds > ${pump_max_duration} ? ${pump_max_duration} : durationSeconds;
+        ESP_LOGI("command", "[waterPump] TIMED ON for %d seconds (requested=%d, max=${pump_max_duration})", clamped, durationSeconds);
+        id(pump_timed).execute(clamped);
+      } else if (action == "ON") {
+        ESP_LOGI("command", "[waterPump] ON (no duration, auto-off in ${pump_max_duration}s)");
+        id(water_pump).turn_on();
+      } else if (action == "OFF") {
+        ESP_LOGI("command", "[waterPump] OFF");
+        id(water_pump).turn_off();
+      } else {
+        ESP_LOGW("command", "[waterPump] Unknown action: %s", action.c_str());
+      }
+    } else {
+      ESP_LOGW("command", "Unknown actuator: %s (action=%s)", actuator.c_str(), action.c_str());
+    }
+
+# --- Board config ---------------------------------------------------------
+esp32:
+  board: esp32-c3-devkitm-1
+  partitions: ../partitions.csv
+  framework:
+    type: esp-idf
+    version: recommended
+    sdkconfig_options:
+      CONFIG_ESP_MQTT_ENABLED: "y"
+      CONFIG_MQTT_TRANSPORT_SSL: "y"
+      CONFIG_MQTT_TRANSPORT_WEBSOCKET: "n"
+      CONFIG_MQTT_TRANSPORT_WEBSOCKET_SECURE: "n"
+    advanced:
+      include_builtin_idf_components:
+        - nvs_flash
+        - mqtt
+
+# --- Packages -------------------------------------------------------------
+packages:
+  base:         !include ../common/base.yaml
+  wifi:         !include ../common/wifi.yaml
+  provisioning: !include ../common/provisioning.yaml
+  globals:      !include ../common/globals.yaml
+  status:       !include ../common/status.yaml
+  led:          !include ../common/led_status.yaml
+  rule_engine:  !include ../common/rule_engine.yaml
+  shadow:       !include ../common/shadow.yaml
+  deep_sleep:   !include ../common/deep_sleep.yaml
+
+  # Physical sensors — wired per the diagram above
+  aht25:    !include ../sensors/aht25.yaml
+  ds18b20:  !include ../sensors/ds18b20.yaml
+  temt6000: !include ../sensors/temt6000_adc.yaml
+  soil:     !include ../sensors/soil_moisture_adc.yaml
+  charge:   !include ../sensors/charge_status.yaml
+
+  # Actuators
+  pump: !include ../actuators/water_pump.yaml
