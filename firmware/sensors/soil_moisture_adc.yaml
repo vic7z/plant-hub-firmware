@@ -31,16 +31,6 @@ sensor:
     icon: "mdi:water-percent"
     update_interval: ${sensor_update_interval}
     lambda: |-
-      // Lazy-init the calibration module from inside the lambda so the
-      // soil-specific boot logic stays inside this file. base.yaml
-      // consolidates all esphome.on_boot entries to dodge ESPHome's
-      // package-merge "last one wins" behaviour, so we can't add one here.
-      static bool cal_inited = false;
-      if (!cal_inited) {
-        planthub::soil_cal_init(${soil_dry_value}, ${soil_wet_value});
-        cal_inited = true;
-      }
-
       float raw = id(soil_raw).state;
       if (isnan(raw)) return NAN;
       planthub::soil_cal_raw_v = raw;  // expose latest sample to the @CAL streamer
@@ -56,10 +46,18 @@ sensor:
       id(evaluate_rules).execute(std::string("soilMoisture"), pct);
       return pct;
 
-# 50 ms polling drives the USB-CDC calibration command listener. Cheap
-# (no-op until the lazy init above has fired) and shared across all
-# variants that include this package.
+# 50 ms polling drives the USB-CDC calibration command listener. The
+# init call is idempotent (guarded by `if (inited) return;`) so it's a
+# single branch on every tick after the first — but the first tick is
+# what installs the USB-CDC driver and loads NVS values, so the device
+# is ready to answer `@CAL GET` within ~50 ms of boot. Doing this here
+# instead of inside the soil_moisture lambda matters because that
+# lambda only fires every ${sensor_update_interval} (30–60 s on real
+# variants), which left a long window where calibration over USB
+# silently failed with "port didn't respond".
 interval:
   - interval: 50ms
     then:
-      - lambda: 'planthub::soil_cal_poll();'
+      - lambda: |-
+          planthub::soil_cal_init(${soil_dry_value}, ${soil_wet_value});
+          planthub::soil_cal_poll();
